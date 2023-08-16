@@ -14,8 +14,7 @@ const PEER_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn main() -> Result<()> {
     let devices = [
-        "wlan0", "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0", "dslite0",
-        "he6in4",
+        "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0", "dslite0", "he6in4",
     ];
 
     let clt = Arc::new(Mutex::new(None));
