@@ -3,12 +3,14 @@ use std::net::{SocketAddr, UdpSocket};
 use std::os::fd::{AsRawFd, RawFd};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use pcap::Capture;
 use ringbuf::{HeapRb, Rb};
 use rsdsl_netlinkd::link;
 use rsdsl_udpdumpd::Result;
+
+const PEER_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn main() -> Result<()> {
     let devices = [
@@ -17,6 +19,7 @@ fn main() -> Result<()> {
     ];
 
     let clt = Arc::new(Mutex::new(None));
+    let last_connect = Arc::new(Mutex::new(Instant::now()));
     let rb = Arc::new(Mutex::new(HeapRb::new(2000)));
 
     let sock = UdpSocket::bind("[::]:5555")?;
@@ -45,11 +48,27 @@ fn main() -> Result<()> {
     let sock2 = sock.try_clone()?;
     let clt2 = clt.clone();
     let rb2 = rb.clone();
+    let last_connect2 = last_connect.clone();
     thread::spawn(move || loop {
-        match recv_ctl(&sock2, clt2.clone(), rb2.clone()) {
+        match recv_ctl(&sock2, clt2.clone(), rb2.clone(), last_connect2.clone()) {
             Ok(_) => {}
             Err(e) => println!("can't recv control packets: {}", e),
         }
+    });
+
+    let clt2 = clt.clone();
+    let last_connect2 = last_connect.clone();
+    thread::spawn(move || loop {
+        if Instant::now().duration_since(
+            *last_connect2
+                .lock()
+                .expect("last connect timestamp mutex is poisoned"),
+        ) >= PEER_TIMEOUT
+        {
+            *clt2.lock().expect("client address mutex is poisoned") = None;
+        }
+
+        thread::sleep(PEER_TIMEOUT / 2);
     });
 
     loop {
@@ -78,18 +97,28 @@ fn recv_ctl(
     sock: &UdpSocket,
     clt: Arc<Mutex<Option<SocketAddr>>>,
     rb: Arc<Mutex<HeapRb<Vec<u8>>>>,
+    last_connect: Arc<Mutex<Instant>>,
 ) -> Result<()> {
     let mut buf = [0; 0];
     let (_, raddr) = sock.recv_from(&mut buf)?;
 
-    for pkt in rb
+    if clt
         .lock()
-        .expect("packet ring buffer mutex is poisoned")
-        .iter()
+        .expect("client address mutex is poisoned")
+        .is_none()
     {
-        sock.send_to(pkt, raddr)?;
+        for pkt in rb
+            .lock()
+            .expect("packet ring buffer mutex is poisoned")
+            .iter()
+        {
+            sock.send_to(pkt, raddr)?;
+        }
     }
 
+    *last_connect
+        .lock()
+        .expect("last connect timestamp mutex is poisoned") = Instant::now();
     *clt.lock().expect("client address mutex is poisoned") = Some(raddr);
 
     println!("connect {}", raddr);
