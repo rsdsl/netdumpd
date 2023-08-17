@@ -1,3 +1,0 @@
-[submodule "libpcap"]
-	path = libpcap
-	url = https://github.com/rsdsl/libpcap.git
