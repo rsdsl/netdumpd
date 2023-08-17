@@ -14,12 +14,14 @@ const PEER_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn main() -> Result<()> {
     let devices = [
-        "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0", "dslite0", "he6in4",
+        "wlan0", "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0", "dslite0",
+        "he6in4",
     ];
 
     let clt = Arc::new(Mutex::new(None));
     let last_connect = Arc::new(Mutex::new(Instant::now()));
     let rb = Arc::new(Mutex::new(HeapRb::new(2000)));
+    let hdr = Arc::new(Mutex::new([0; 24]));
 
     let sock = UdpSocket::bind("[::]:5555")?;
 
@@ -48,8 +50,15 @@ fn main() -> Result<()> {
     let clt2 = clt.clone();
     let rb2 = rb.clone();
     let last_connect2 = last_connect.clone();
+    let hdr2 = hdr.clone();
     thread::spawn(move || loop {
-        match recv_ctl(&sock2, clt2.clone(), rb2.clone(), last_connect2.clone()) {
+        match recv_ctl(
+            &sock2,
+            clt2.clone(),
+            rb2.clone(),
+            last_connect2.clone(),
+            hdr2.clone(),
+        ) {
             Ok(_) => {}
             Err(e) => println!("can't recv control packets: {}", e),
         }
@@ -69,6 +78,11 @@ fn main() -> Result<()> {
 
         thread::sleep(PEER_TIMEOUT / 2);
     });
+
+    let mut hdr_buf = [0; 24];
+    let _ = r.read(&mut hdr_buf)?;
+
+    *hdr.lock().expect("pcap header mutex is poisoned") = hdr_buf;
 
     loop {
         let mut buf = [0; 1600];
@@ -97,6 +111,7 @@ fn recv_ctl(
     clt: Arc<Mutex<Option<SocketAddr>>>,
     rb: Arc<Mutex<HeapRb<Vec<u8>>>>,
     last_connect: Arc<Mutex<Instant>>,
+    hdr: Arc<Mutex<[u8; 24]>>,
 ) -> Result<()> {
     let mut buf = [0; 0];
     let (_, raddr) = sock.recv_from(&mut buf)?;
@@ -106,6 +121,8 @@ fn recv_ctl(
         .expect("client address mutex is poisoned")
         .is_none()
     {
+        sock.send_to(&*hdr.lock().expect("pcap header mutex is poisoned"), raddr)?;
+
         for pkt in rb
             .lock()
             .expect("packet ring buffer mutex is poisoned")

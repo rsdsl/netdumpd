@@ -1,3 +1,4 @@
+use std::array;
 use std::io;
 use std::sync::mpsc;
 
@@ -11,6 +12,8 @@ pub enum Error {
     MpscRecv(#[from] mpsc::RecvError),
     #[error("mpsc send Vec<u8>")]
     MpscSendU8Vec,
+    #[error("array try from slice: {0}")]
+    ArrayTryFromSlice(#[from] array::TryFromSliceError),
 
     #[error("pcap: {0}")]
     Pcap(#[from] pcap::Error),
