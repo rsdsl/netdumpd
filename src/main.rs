@@ -15,7 +15,7 @@ use pcap::Capture;
 use ringbuf::{HeapRb, Rb};
 use rsdsl_netlinklib::blocking::Connection;
 use russh::server::{Auth, Handle, Msg, Session};
-use russh::{Channel, ChannelId, MethodSet};
+use russh::{Channel, ChannelId, CryptoVec, MethodSet};
 use russh_keys::key::KeyPair;
 use thiserror::Error;
 
