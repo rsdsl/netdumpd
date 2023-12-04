@@ -108,13 +108,12 @@ impl russh::server::Handler for Server {
         let mut buf = Vec::new();
         header.write_to(&mut buf).await?;
 
-        let s = session.handle();
-        let _ = s.data(channel, CryptoVec::from(buf)).await;
+        session.data(channel, CryptoVec::from(buf));
 
         {
             let packets = self.packets.lock().await;
             for packet in packets.iter() {
-                let _ = s.data(channel, CryptoVec::from(packet.clone())).await;
+                session.data(channel, CryptoVec::from(packet.clone()));
             }
         }
 
