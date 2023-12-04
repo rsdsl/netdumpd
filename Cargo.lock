@@ -1167,6 +1167,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsdsl_netdumpd"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "pcap",
+ "ringbuf",
+ "rsdsl_netlinklib",
+ "russh",
+ "russh-keys",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "rsdsl_netlinklib"
 version = "0.4.5"
 source = "git+https://github.com/rsdsl/netlinklib.git#f63d077934d1edd0c804d2f9d3ad736f4baead25"
@@ -1176,20 +1190,6 @@ dependencies = [
  "netlink-packet-route",
  "netlink-proto",
  "rtnetlink",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "rsdsl_udpdumpd"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "pcap",
- "ringbuf",
- "rsdsl_netlinklib",
- "russh",
- "russh-keys",
  "thiserror",
  "tokio",
 ]
