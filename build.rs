@@ -1,6 +1,17 @@
+use std::env;
+
 fn main() {
-    println!("{:?}", std::env::var("LIBPCAP_LIBDIR"));
-    println!("cargo:rustc-link-arg=-lc");
-    println!("cargo:rustc-link-arg=-lnl-3");
-    println!("cargo:rustc-link-arg=-lnl-genl-3");
+    // #[cfg(arch = "x86_64")]
+    // println!("cargo:rustc-link-search=./libpcap/x86_64");
+
+    // #[cfg(arch = "aarch64")]
+    // println!("cargo:rustc-link-search=./libpcap/rpi");
+
+    match env::var("CARGO_CFG_TARGET_ARCH").unwrap_or(String::new()).as_str() {
+        "x86_64" => println!("cargo:rustc-link-search=./libpcap/x86_64"),
+        "aarch64" => println!("cargo:rustc-link-search=./libpcap/rpi"),
+        _ => println!("cargo:warning=Building for unsupported architecture, library search path may be incorrect"),
+    }
+
+    println!("cargo:rustc-link-lib=static=pcap");
 }
