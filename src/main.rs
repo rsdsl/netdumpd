@@ -1,16 +1,42 @@
-use std::io::Read;
+use std::array;
+use std::io::{self, Read};
 use std::net::{SocketAddr, UdpSocket};
 use std::os::fd::{AsRawFd, RawFd};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use pcap::Capture;
 use ringbuf::{HeapRb, Rb};
-use rsdsl_netlinkd::link;
-use rsdsl_udpdumpd::Result;
+use rsdsl_netlinklib::blocking::Connection;
+use thiserror::Error;
 
 const PEER_TIMEOUT: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Error)]
+enum Error {
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
+    #[error("can't receive from mpsc channel: {0}")]
+    MpscRecv(#[from] mpsc::RecvError),
+    #[error("can't send Vec<u8> to mpsc channel")]
+    MpscSendU8Vec,
+    #[error("can't convert slice to array: {0}")]
+    ArrayTryFromSlice(#[from] array::TryFromSliceError),
+
+    #[error("netlinklib error: {0}")]
+    Netlinklib(#[from] rsdsl_netlinklib::Error),
+    #[error("pcap error: {0}")]
+    Pcap(#[from] pcap::Error),
+}
+
+impl From<mpsc::SendError<Vec<u8>>> for Error {
+    fn from(_: mpsc::SendError<Vec<u8>>) -> Self {
+        Self::MpscSendU8Vec
+    }
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 fn main() -> Result<()> {
     let devices = [
@@ -30,16 +56,9 @@ fn main() -> Result<()> {
 
     for dev in devices {
         thread::spawn(move || loop {
-            if let Err(e) = link::wait_up(dev.to_owned()) {
-                println!("can't wait for {}: {}", dev, e);
-
-                thread::sleep(Duration::from_secs(8));
-                continue;
-            }
-
             match capture(dev, fd) {
                 Ok(_) => unreachable!(),
-                Err(e) => println!("can't capture on {}: {}", dev, e),
+                Err(e) => println!("[warn] can't capture on {}: {}", dev, e),
             }
 
             thread::sleep(Duration::from_secs(8));
@@ -60,7 +79,7 @@ fn main() -> Result<()> {
             hdr2.clone(),
         ) {
             Ok(_) => {}
-            Err(e) => println!("can't recv control packets: {}", e),
+            Err(e) => println!("[warn] can't recv control packets: {}", e),
         }
     });
 
@@ -99,7 +118,7 @@ fn main() -> Result<()> {
                 Ok(_) => {}
                 Err(e) => {
                     *clt = None;
-                    println!("can't send pcap pkt: {}", e);
+                    println!("[warn] can't send pcap packet: {}", e);
                 }
             }
         }
@@ -137,12 +156,15 @@ fn recv_ctl(
         .expect("last connect timestamp mutex is poisoned") = Instant::now();
     *clt.lock().expect("client address mutex is poisoned") = Some(raddr);
 
-    println!("connect {}", raddr);
+    println!("[info] connect {}", raddr);
     Ok(())
 }
 
 fn capture(dev: &str, fd: RawFd) -> Result<()> {
-    println!("capturing on {}", dev);
+    println!("[info] wait for {}", dev);
+    Connection::new()?.link_wait_exists(dev.into())?;
+
+    println!("[info] capture on {}", dev);
 
     let mut cap = Capture::from_device(dev)?.immediate_mode(true).open()?;
     let mut savefile = unsafe { cap.savefile_raw_fd(fd)? };

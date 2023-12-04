@@ -9,5 +9,5 @@ edition = "2021"
 os_pipe = "1.1.4"
 pcap = "1.1.0"
 ringbuf = "0.3.3"
-rsdsl_netlinkd = { git = "https://github.com/rsdsl/netlinkd.git", version = "0.6.2" }
+rsdsl_netlinklib = { git = "https://github.com/rsdsl/netlinklib.git", version = "0.4.5", default-features = false, features = ["blocking", "status"] }
 thiserror = "1.0"
