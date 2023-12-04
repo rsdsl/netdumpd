@@ -98,6 +98,8 @@ impl russh::server::Handler for Server {
     ) -> Result<(Self, Session)> {
         println!("[info] [{}] exec", channel);
 
+        session.channel_success(channel);
+
         let header = PcapHeader {
             endianness: Endianness::Little,
             ..Default::default()
