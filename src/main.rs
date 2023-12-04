@@ -19,8 +19,6 @@ use russh::{Channel, ChannelId, MethodSet};
 use russh_keys::key::KeyPair;
 use thiserror::Error;
 
-const PEER_TIMEOUT: Duration = Duration::from_secs(30);
-
 #[derive(Debug, Error)]
 enum Error {
     #[error("io error: {0}")]
