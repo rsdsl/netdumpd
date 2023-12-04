@@ -122,6 +122,24 @@ impl russh::server::Handler for Server {
 
     async fn channel_close(self, channel: ChannelId, session: Session) -> Result<(Self, Session)> {
         println!("[info] [{}] close session", channel);
+
+        {
+            let mut clients = self.clients.lock().await;
+
+            let mut del_id = None;
+            for ((id, ch), _) in clients.iter() {
+                if *ch == channel {
+                    del_id = Some(*id);
+                }
+            }
+
+            if let Some(id) = del_id {
+                clients.remove(&(id, channel));
+            } else {
+                println!("[warn] [{}] no session", channel);
+            }
+        }
+
         Ok((self, session))
     }
 }
