@@ -20,6 +20,18 @@ use russh::{Channel, ChannelId, CryptoVec, MethodSet};
 use russh_keys::key::KeyPair;
 use thiserror::Error;
 
+// Capture filter:
+//
+// * ARP
+// * DHCPv4 (UDP port 67,  68)
+// * DHCPv6 (UDP port 546, 547)
+// * SIP    (UDP port 5060)
+// * ICMPv4
+// * ICMPv6 (-> NDP, RA)
+// * PPPoED
+// * PPP Control Protocols (ID > 0x4000, see RFC 1661 section 2)
+const FILTER: &str = "arp or udp port 67 or udp port 68 or udp port 546 or udp port 547 or udp port 5060 or icmp or icmp6 or ether proto 0x8863 or (ether proto 0x8864 and ether[20:2] > 0x4000)";
+
 #[derive(Debug, Error)]
 enum Error {
     #[error("io error: {0}")]
@@ -170,11 +182,14 @@ async fn capture(
     server: Server,
     live_tx: mpsc::UnboundedSender<Vec<u8>>,
 ) -> Result<()> {
-    let mut packet_stream = Capture::from_device(device)?
+    let mut capture = Capture::from_device(device)?
         .immediate_mode(true)
         .open()?
-        .setnonblock()?
-        .stream(NullCodec)?;
+        .setnonblock()?;
+
+    capture.filter(FILTER, true)?;
+
+    let mut packet_stream = capture.stream(NullCodec)?;
 
     while let Some(packet) = packet_stream.try_next().await? {
         let mut buf = Vec::new();
