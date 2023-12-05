@@ -15,6 +15,7 @@ use pcap::{Capture, Device, Packet, PacketCodec};
 use pcap_file_tokio::pcap::{PcapHeader, PcapPacket};
 use pcap_file_tokio::{Endianness, TsResolution};
 use ringbuf::{HeapRb, Rb};
+use rsdsl_netlinklib::Connection;
 use russh::server::{Auth, Handle, Msg, Session};
 use russh::{Channel, ChannelId, CryptoVec, MethodSet};
 use russh_keys::key::KeyPair;
@@ -206,7 +207,7 @@ async fn capture(
     Ok(())
 }
 
-async fn live_push(server: Server, mut live_rx: mpsc::UnboundedReceiver<Vec<u8>>) -> Result<()> {
+async fn live_push(server: Server, live_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Result<()> {
     while let Some(packet) = live_rx.recv().await {
         let clients = server.clients.lock().await;
         for ((_, channel), session) in clients.iter() {
@@ -232,7 +233,7 @@ async fn main() -> Result<()> {
         ..Default::default()
     });
 
-    let (live_tx, live_rx) = mpsc::unbounded_channel();
+    let (live_tx, mut live_rx) = mpsc::unbounded_channel();
 
     let server = Server {
         clients: Arc::new(Mutex::new(HashMap::new())),
@@ -253,18 +254,31 @@ async fn main() -> Result<()> {
         let server2 = server.clone();
         let live_tx2 = live_tx.clone();
         tokio::spawn(async move {
-            match capture(device.into(), server2, live_tx2).await {
-                Ok(_) => {}
-                Err(e) => println!("[fail] capture on {}: {}", device, e),
+            let conn = Connection::new().await.expect("netlinklib connection");
+
+            loop {
+                println!("[info] wait for {}", device);
+                conn.link_wait_up(device.to_string())
+                    .await
+                    .expect("link waiting");
+
+                match capture(device.into(), server2.clone(), live_tx2.clone()).await {
+                    Ok(_) => {}
+                    Err(e) => println!("[fail] capture on {}: {}", device, e),
+                }
             }
         });
     }
 
     let server2 = server.clone();
     tokio::spawn(async move {
-        match live_push(server2, live_rx).await {
-            Ok(_) => {}
-            Err(e) => println!("[fail] live push: {}", e),
+        loop {
+            match live_push(server2.clone(), &mut live_rx).await {
+                Ok(_) => {}
+                Err(e) => println!("[fail] live push: {}", e),
+            }
+
+            tokio::time::sleep(Duration::from_secs(8)).await;
         }
     });
 
