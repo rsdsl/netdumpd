@@ -14,4 +14,4 @@ ringbuf = "0.3.3"
 russh = "0.40.0"
 russh-keys = "^0.40"
 thiserror = "1.0"
-tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
