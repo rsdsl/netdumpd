@@ -242,7 +242,9 @@ async fn main() -> Result<()> {
         packets: Arc::new(Mutex::new(HeapRb::new(64000))),
     };
 
-    let devices = ["wlan0"];
+    let devices = [
+        "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0",
+    ];
 
     for device in devices {
         if device == "any" {
