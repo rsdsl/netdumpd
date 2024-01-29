@@ -32,6 +32,9 @@ use thiserror::Error;
 // * PPP Control Protocols (ID > 0x4000, see RFC 1661 section 2)
 const FILTER: &str = "arp or udp port 67 or udp port 68 or udp port 546 or udp port 547 or udp port 5060 or icmp or icmp6 or ether proto 0x8863 or (ether proto 0x8864 and ether[20:2] > 0x4000)";
 
+const PPP_MAC_AC: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x01];
+const PPP_MAC_HOST: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x02];
+
 #[derive(Debug, Error)]
 enum Error {
     #[error("io error: {0}")]
@@ -182,6 +185,8 @@ async fn capture(
     server: Server,
     live_tx: mpsc::UnboundedSender<Vec<u8>>,
 ) -> Result<()> {
+    let is_ppp = device.name.starts_with("ppp");
+
     let mut capture = Capture::from_device(device)?
         .immediate_mode(true)
         .open()?
@@ -191,7 +196,40 @@ async fn capture(
 
     let mut packet_stream = capture.stream(NullCodec)?;
 
-    while let Some(packet) = packet_stream.try_next().await? {
+    while let Some(mut packet) = packet_stream.try_next().await? {
+        // Format an Ethernet pseudo-header to make wireshark detect the EtherType correctly.
+        if is_ppp {
+            let data = packet.data.to_mut();
+
+            // Remove invalid 0x0000 where EtherType is supposed to be.
+            // The data that is shifted in its place is the correct EtherType.
+            data.remove(13);
+            data.remove(12);
+
+            match u16::from_be_bytes(data[0..2].try_into()?) {
+                // Outgoing packet:
+                // sll_pkttype == PACKET_OUTGOING
+                4 => {
+                    // Destination: CF:72:73:00:00:01 (Access Concentrator)
+                    data[0..6].copy_from_slice(PPP_MAC_AC);
+
+                    // Source: CF:72:73:00:00:02 (Host)
+                    data[6..12].copy_from_slice(PPP_MAC_HOST);
+                }
+                // Incoming (unicast) packet:
+                // sll_pkttype == PACKET_HOST
+                0 => {
+                    // Destination: CF:72:73:00:00:02 (Host)
+                    data[0..6].copy_from_slice(PPP_MAC_HOST);
+
+                    // Source: CF:72:73:00:00:01 (Access Concentrator)
+                    data[6..12].copy_from_slice(PPP_MAC_AC);
+                }
+                // Unknown or invalid packet type, make it available in wireshark.
+                _ => {}
+            }
+        }
+
         let mut buf = Vec::new();
         packet
             .write_to::<_, LittleEndian>(&mut buf, TsResolution::MicroSecond, 65535)
