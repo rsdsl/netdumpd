@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::net::SocketAddr;
+use std::num::Wrapping;
 use std::sync::Arc;
 
 use tokio::sync::{mpsc, Mutex};
@@ -68,10 +69,12 @@ impl PacketCodec for NullCodec {
     }
 }
 
+type HandleId = (Wrapping<usize>, ChannelId);
+
 #[derive(Clone)]
 struct Server {
-    clients: Arc<Mutex<HashMap<(usize, ChannelId), Handle>>>,
-    id: usize,
+    clients: Arc<Mutex<HashMap<HandleId, Handle>>>,
+    id: Wrapping<usize>,
 
     packets: Arc<Mutex<HeapRb<Vec<u8>>>>,
 }
@@ -235,7 +238,7 @@ async fn main() -> Result<()> {
 
     let server = Server {
         clients: Arc::new(Mutex::new(HashMap::new())),
-        id: 0,
+        id: Wrapping(0),
 
         packets: Arc::new(Mutex::new(HeapRb::new(64000))),
     };
