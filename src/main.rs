@@ -57,16 +57,14 @@ impl PacketCodec for NullCodec {
     type Item = PcapPacket<'static>;
 
     fn decode(&mut self, packet: Packet<'_>) -> Self::Item {
-        let pcap_packet = PcapPacket::new_owned(
+        PcapPacket::new_owned(
             Duration::new(
                 packet.header.ts.tv_sec as u64,
                 (packet.header.ts.tv_usec * 1000) as u32,
             ),
             packet.header.len,
             packet.data.to_vec(),
-        );
-
-        pcap_packet
+        )
     }
 }
 
