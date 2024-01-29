@@ -301,6 +301,7 @@ async fn main() -> Result<()> {
                     .await
                     .expect("link waiting");
 
+                println!("[info] capture {}", device);
                 match capture(device.into(), server2.clone(), live_tx2.clone()).await {
                     Ok(_) => {}
                     Err(e) => println!("[fail] capture on {}: {}", device, e),
