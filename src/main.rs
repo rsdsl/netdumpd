@@ -1,10 +1,8 @@
-use std::array;
 use std::collections::HashMap;
-use std::fs;
-use std::io;
 use std::net::SocketAddr;
 use std::num::Wrapping;
 use std::sync::Arc;
+use std::{array, fs, io};
 
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
