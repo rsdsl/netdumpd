@@ -35,6 +35,9 @@ const FILTER: &str = "arp or udp port 67 or udp port 68 or udp port 546 or udp p
 const PPP_MAC_AC: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x01];
 const PPP_MAC_HOST: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x02];
 
+// The maximum number of packets held in the ring buffer.
+const PACKET_BUFFER_SIZE: usize = 256000;
+
 #[derive(Debug, Error)]
 enum Error {
     #[error("io error: {0}")]
@@ -276,7 +279,7 @@ async fn main() -> Result<()> {
         clients: Arc::new(Mutex::new(HashMap::new())),
         id: Wrapping(0),
 
-        packets: Arc::new(Mutex::new(HeapRb::new(64000))),
+        packets: Arc::new(Mutex::new(HeapRb::new(PACKET_BUFFER_SIZE))),
     };
 
     let devices = [
