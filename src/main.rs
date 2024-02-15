@@ -32,6 +32,10 @@ use thiserror::Error;
 // * PPP Control Protocols (ID > 0x4000, see RFC 1661 section 2)
 const FILTER: &str = "arp or udp port 67 or udp port 68 or udp port 546 or udp port 547 or udp port 5060 or icmp or icmp6 or ether proto 0x8863 or (ether proto 0x8864 and ether[20:2] > 0x4000)";
 
+const DEVICES: &[&str] = &[
+    "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0",
+];
+
 const PPP_MAC_AC: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x01];
 const PPP_MAC_HOST: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x02];
 
@@ -282,12 +286,8 @@ async fn main() -> Result<()> {
         packets: Arc::new(Mutex::new(HeapRb::new(PACKET_BUFFER_SIZE))),
     };
 
-    let devices = [
-        "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0",
-    ];
-
-    for device in devices {
-        if device == "any" {
+    for device in DEVICES {
+        if *device == "any" {
             continue;
         }
 
@@ -305,7 +305,7 @@ async fn main() -> Result<()> {
                     .expect("link waiting");
 
                 println!("[info] capture {}", device);
-                match capture(device.into(), server2.clone(), live_tx2.clone()).await {
+                match capture((*device).into(), server2.clone(), live_tx2.clone()).await {
                     Ok(_) => {}
                     Err(e) => println!("[fail] capture on {}: {}", device, e),
                 }
