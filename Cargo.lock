@@ -1220,7 +1220,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "byteorder",
- "futures",
  "pcap",
  "pcap-file-tokio",
  "ringbuf",
