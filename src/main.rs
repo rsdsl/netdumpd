@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::num::Wrapping;
 use std::sync::Arc;
 use std::{array, fs, io};
@@ -37,6 +37,11 @@ const DEVICES: &[&str] = &[
 
 const PPP_MAC_AC: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x01];
 const PPP_MAC_HOST: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x02];
+
+const DSLITE_MAC_AFTR: &[u8] = &[0xce, 0x72, 0x73, 0x00, 0x00, 0x01];
+const DSLITE_MAC_B4: &[u8] = &[0xce, 0x72, 0x73, 0x00, 0x00, 0x02];
+
+const ETHERTYPE_IPV4: u16 = 0x800;
 
 // The maximum number of packets held in the ring buffer.
 const PACKET_BUFFER_SIZE: usize = 256000;
@@ -194,6 +199,7 @@ async fn capture(
     let mut null_codec = NullCodec;
 
     let is_ppp = device.name.starts_with("ppp");
+    let is_dslite = device.name == "dslite0";
 
     let mut capture = Capture::from_device(device)?
         .immediate_mode(true)
@@ -238,6 +244,32 @@ async fn capture(
                         // Unknown or invalid packet type, make it available in wireshark.
                         _ => {}
                     }
+                } else if is_dslite {
+                    let mut data = packet.data.into_owned();
+
+                    let dst = Ipv4Addr::from(<[u8; 4]>::try_from(&data[16..20])?);
+                    if dst.is_private() {
+                        // Incoming packet.
+                        //
+                        // Destination: CE:72:73:00:00:02 (B4)
+                        // Source: CE:72:73:00:00:01 (AFTR)
+
+                        data.splice(..0, DSLITE_MAC_B4.iter().copied());
+                        data.splice(6..6, DSLITE_MAC_AFTR.iter().copied());
+                    } else {
+                        // Outgoing packet.
+                        //
+                        // Destination: CE:72:73:00:00:01 (AFTR)
+                        // Source: CE:72:73.00:00:02 (B4)
+
+                        data.splice(..0, DSLITE_MAC_AFTR.iter().copied());
+                        data.splice(6..6, DSLITE_MAC_B4.iter().copied());
+                    }
+
+                    // EtherType: 0x0800 (IPv4)
+                    data.splice(12..12, ETHERTYPE_IPV4.to_be_bytes());
+
+                    packet = PcapPacket::new_owned(packet.timestamp, 14 + packet.orig_len, data);
                 }
 
                 let mut buf = Vec::new();
