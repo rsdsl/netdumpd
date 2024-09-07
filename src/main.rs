@@ -32,7 +32,7 @@ use thiserror::Error;
 const FILTER: &str = "arp or udp port 67 or udp port 68 or udp port 546 or udp port 547 or udp port 5060 or icmp or icmp6 or ether proto 0x8863 or (ether proto 0x8864 and ether[20:2] > 0x4000)";
 
 const DEVICES: &[&str] = &[
-    "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "ppp0", "dslite0",
+    "eth0", "eth0.10", "eth0.20", "eth0.30", "eth0.40", "eth1", "carrier0", "ppp0", "dslite0",
 ];
 
 const PPP_MAC_AC: &[u8] = &[0xcf, 0x72, 0x73, 0x00, 0x00, 0x01];
