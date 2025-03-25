@@ -14,5 +14,4 @@ ringbuf = "0.3.3"
 rsdsl_netlinklib = { git = "https://github.com/rsdsl/netlinklib.git", default-features = false, features = ["status"] }
 russh = "0.40.0"
 russh-keys = "^0.40"
-thiserror = "1.0"
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }

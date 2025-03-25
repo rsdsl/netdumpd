@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::num::Wrapping;
 use std::sync::Arc;
-use std::{array, fs, io};
+use std::{array, fmt, fs, io};
 
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
@@ -17,7 +17,6 @@ use rsdsl_netlinklib::Connection;
 use russh::server::{Auth, Handle, Msg, Session};
 use russh::{Channel, ChannelId, CryptoVec, MethodSet};
 use russh_keys::key::KeyPair;
-use thiserror::Error;
 
 // Capture filter:
 //
@@ -46,20 +45,61 @@ const ETHERTYPE_IPV4: u16 = 0x800;
 // The maximum number of packets held in the ring buffer.
 const PACKET_BUFFER_SIZE: usize = 256000;
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 enum Error {
-    #[error("io error: {0}")]
-    Io(#[from] io::Error),
-    #[error("can't convert slice to array: {0}")]
-    ArrayTryFromSlice(#[from] array::TryFromSliceError),
+    Io(io::Error),
+    ArrayTryFromSlice(array::TryFromSliceError),
 
-    #[error("pcap error: {0}")]
-    Pcap(#[from] pcap::Error),
-    #[error("pcap_file_tokio error: {0}")]
-    PcapFileTokio(#[from] pcap_file_tokio::PcapError),
-    #[error("russh error: {0}")]
-    Russh(#[from] russh::Error),
+    Pcap(pcap::Error),
+    PcapFileTokio(pcap_file_tokio::PcapError),
+    Russh(russh::Error),
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(e) => write!(f, "io error: {}", e)?,
+            Self::ArrayTryFromSlice(e) => write!(f, "can't convert slice to array: {}", e)?,
+            Self::Pcap(e) => write!(f, "pcap error: {}", e)?,
+            Self::PcapFileTokio(e) => write!(f, "pcap_file_tokio error: {}", e)?,
+            Self::Russh(e) => write!(f, "russh error: {}", e)?,
+        }
+
+        Ok(())
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Error {
+        Error::Io(e)
+    }
+}
+
+impl From<array::TryFromSliceError> for Error {
+    fn from(e: array::TryFromSliceError) -> Error {
+        Error::ArrayTryFromSlice(e)
+    }
+}
+
+impl From<pcap::Error> for Error {
+    fn from(e: pcap::Error) -> Error {
+        Error::Pcap(e)
+    }
+}
+
+impl From<pcap_file_tokio::PcapError> for Error {
+    fn from(e: pcap_file_tokio::PcapError) -> Error {
+        Error::PcapFileTokio(e)
+    }
+}
+
+impl From<russh::Error> for Error {
+    fn from(e: russh::Error) -> Error {
+        Error::Russh(e)
+    }
+}
+
+impl std::error::Error for Error {}
 
 type Result<T> = std::result::Result<T, Error>;
 
