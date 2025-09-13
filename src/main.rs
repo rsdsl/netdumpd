@@ -133,8 +133,8 @@ struct Server {
 }
 
 impl Server {
-    fn verify_argon2id(self, password: &[u8], phc: String) -> Result<(Self, Auth)> {
-        let parsed_hash = match PasswordHash::new(&phc) {
+    fn verify_argon2id(self, password: &[u8], phc: &str) -> Result<(Self, Auth)> {
+        let parsed_hash = match PasswordHash::new(phc) {
             Ok(p) => p,
             Err(e) => {
                 println!("[warn] bad phc {}: {}", phc, e);
@@ -234,7 +234,7 @@ impl russh::server::Handler for Server {
         }
 
         match fs::read_to_string("/data/passwd.argon2id") {
-            Ok(phc) => self.verify_argon2id(password.as_bytes(), phc),
+            Ok(phc) => self.verify_argon2id(password.as_bytes(), &phc),
             Err(e) if e.kind() == io::ErrorKind::NotFound => self.verify_plain(password),
             Err(e) => {
                 println!("[warn] read /data/passwd.argon2id: {}", e);
