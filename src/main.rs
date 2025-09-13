@@ -7,6 +7,7 @@ use std::{array, fmt, fs, io};
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use async_trait::async_trait;
 use byteorder::LittleEndian;
 use pcap::{Capture, Device, Packet, PacketCodec};
@@ -131,6 +132,67 @@ struct Server {
     packets: Arc<Mutex<HeapRb<Vec<u8>>>>,
 }
 
+impl Server {
+    fn verify_argon2id(self, password: &[u8], phc: String) -> Result<(Self, Auth)> {
+        let parsed_hash = match PasswordHash::new(&phc) {
+            Ok(p) => p,
+            Err(e) => {
+                println!("[warn] bad phc {}: {}", phc, e);
+                return Ok((
+                    self,
+                    Auth::Reject {
+                        proceed_with_methods: None,
+                    },
+                ));
+            }
+        };
+
+        if Argon2::default()
+            .verify_password(password, &parsed_hash)
+            .is_ok()
+        {
+            println!("[info] auth ok argon2id");
+            Ok((self, Auth::Accept))
+        } else {
+            println!("[warn] auth err argon2id");
+            Ok((
+                self,
+                Auth::Reject {
+                    proceed_with_methods: None,
+                },
+            ))
+        }
+    }
+
+    fn verify_plain(self, password: &str) -> Result<(Self, Auth)> {
+        let correct_password = match fs::read("/data/admind.passwd") {
+            Ok(p) => p,
+            Err(e) => {
+                println!("[warn] read /data/admind.passwd: {}", e);
+                return Ok((
+                    self,
+                    Auth::Reject {
+                        proceed_with_methods: None,
+                    },
+                ));
+            }
+        };
+
+        if password.as_bytes() == correct_password {
+            println!("[info] auth ok plain");
+            Ok((self, Auth::Accept))
+        } else {
+            println!("[warn] auth err plain");
+            Ok((
+                self,
+                Auth::Reject {
+                    proceed_with_methods: None,
+                },
+            ))
+        }
+    }
+}
+
 impl russh::server::Server for Server {
     type Handler = Self;
 
@@ -161,19 +223,28 @@ impl russh::server::Handler for Server {
     }
 
     async fn auth_password(self, user: &str, password: &str) -> Result<(Self, Auth)> {
-        let correct_password = fs::read("/data/admind.passwd")?;
-
-        if user == "rustkrazy" && password.as_bytes() == correct_password {
-            println!("[info] auth ok");
-            Ok((self, Auth::Accept))
-        } else {
-            println!("[warn] auth err");
-            Ok((
+        if user != "rustkrazy" {
+            println!("[warn] bad user {}", user);
+            return Ok((
                 self,
                 Auth::Reject {
                     proceed_with_methods: None,
                 },
-            ))
+            ));
+        }
+
+        match fs::read_to_string("/data/passwd.argon2id") {
+            Ok(phc) => self.verify_argon2id(password.as_bytes(), phc),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => self.verify_plain(password),
+            Err(e) => {
+                println!("[warn] read /data/passwd.argon2id: {}", e);
+                Ok((
+                    self,
+                    Auth::Reject {
+                        proceed_with_methods: None,
+                    },
+                ))
+            }
         }
     }
 
