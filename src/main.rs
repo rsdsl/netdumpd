@@ -212,7 +212,7 @@ impl russh::server::Handler for Server {
         channel: Channel<Msg>,
         session: Session,
     ) -> Result<(Self, bool, Session)> {
-        println!("[info] [{}] open session", channel.id());
+        eprintln!("[info] [{}] open session", channel.id());
 
         {
             let mut clients = self.clients.lock().await;
@@ -224,7 +224,7 @@ impl russh::server::Handler for Server {
 
     async fn auth_password(self, user: &str, password: &str) -> Result<(Self, Auth)> {
         if user != "rustkrazy" {
-            println!("[warn] bad user {}", user);
+            eprintln!("[warn] bad user {}", user);
             return Ok((
                 self,
                 Auth::Reject {
@@ -254,7 +254,7 @@ impl russh::server::Handler for Server {
         _: &[u8],
         mut session: Session,
     ) -> Result<(Self, Session)> {
-        println!("[info] [{}] exec", channel);
+        eprintln!("[info] [{}] exec", channel);
 
         session.channel_success(channel);
 
@@ -279,7 +279,7 @@ impl russh::server::Handler for Server {
     }
 
     async fn channel_close(self, channel: ChannelId, session: Session) -> Result<(Self, Session)> {
-        println!("[info] [{}] close session", channel);
+        eprintln!("[info] [{}] close session", channel);
 
         {
             let mut clients = self.clients.lock().await;
@@ -294,7 +294,7 @@ impl russh::server::Handler for Server {
             if let Some(id) = del_id {
                 clients.remove(&(id, channel));
             } else {
-                println!("[warn] [{}] no session", channel);
+                eprintln!("[warn] [{}] no session", channel);
             }
         }
 
@@ -416,7 +416,7 @@ async fn live_push(server: Server, live_rx: &mut mpsc::UnboundedReceiver<Vec<u8>
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("[info] init");
+    eprintln!("[info] init");
 
     let config = Arc::new(russh::server::Config {
         methods: MethodSet::PASSWORD,
@@ -441,7 +441,7 @@ async fn main() -> Result<()> {
             continue;
         }
 
-        println!("[info] capture on {}", device);
+        eprintln!("[info] capture on {}", device);
 
         let server2 = server.clone();
         let live_tx2 = live_tx.clone();
@@ -449,15 +449,15 @@ async fn main() -> Result<()> {
             let conn = Connection::new().await.expect("netlinklib connection");
 
             loop {
-                println!("[info] wait for {}", device);
+                eprintln!("[info] wait for {}", device);
                 conn.link_wait_up(device.to_string())
                     .await
                     .expect("link waiting");
 
-                println!("[info] capture {}", device);
+                eprintln!("[info] capture {}", device);
                 match capture((*device).into(), server2.clone(), live_tx2.clone()).await {
                     Ok(_) => {}
-                    Err(e) => println!("[fail] capture on {}: {}", device, e),
+                    Err(e) => eprintln!("[fail] capture on {}: {}", device, e),
                 }
             }
         });
@@ -468,7 +468,7 @@ async fn main() -> Result<()> {
         loop {
             match live_push(server2.clone(), &mut live_rx).await {
                 Ok(_) => {}
-                Err(e) => println!("[fail] live push: {}", e),
+                Err(e) => eprintln!("[fail] live push: {}", e),
             }
 
             tokio::time::sleep(Duration::from_secs(8)).await;
